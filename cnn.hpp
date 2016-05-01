@@ -107,6 +107,8 @@ protected:
     float mse(float x , float y);
     float mse_derivative(float x, float y);
     float* Kronecker_2(const float a[],int a_len);
+    //float dot_product(float *a, float *b, int len);
+    
     
     //forward process
     bool forward_c1();
@@ -115,6 +117,9 @@ protected:
     bool forward_s4();
     bool forward_c5();
     bool forward_output();
+    
+    //backword process
+    bool backward_output();
     
     
 private:
@@ -145,6 +150,10 @@ private:
     float map_s4_out[width_s4 * height_s4 * num_map_s4];
     float map_c5_out[width_c5 * height_c5 * num_map_c5];
     float map_output_out[width_output_cnn * height_output_cnn * num_output_cnn];
+    
+    
+    float delta_output_cnn[len_output_map_all];
+    
    
     /*
     constexpr static int Matrix_s2c3[num_map_s2][num_map_c3] =

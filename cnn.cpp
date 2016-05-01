@@ -320,12 +320,16 @@ bool cnn::train()
         data_single_image = data_input_train + i * len_input_map_all;
         data_single_label = data_label_train + i * len_input_map_all;
         
+        //forward
         forward_c1();
         forward_s2();
         forward_c3();
         forward_s4();
         forward_c5();
         forward_output();
+        
+        //backward
+        
         
         cin.get();
     }
@@ -1225,3 +1229,25 @@ bool cnn::forward_output()
     
     return true;
 }
+
+
+bool cnn::backward_output()
+{
+    float de_dy[len_output_map_all];
+    float dy_da[len_output_map_all];
+    
+    //initial_value(de_dy, 0.0, len_output_map_all);
+    //initial_value(dy_da, 0.0, len_output_map_all);
+    
+    for (int i = 0 ; i < len_output_map_all; i++)
+    {
+        de_dy[i] = mse_derivative(data_single_label[i], map_output_out[i]);
+        dy_da[i] = activation_tanh_derivative(map_output_out[i]);
+        delta_output_cnn[i] = de_dy[i] * dy_da[i];
+    }
+    
+    return true;
+}
+
+
+
