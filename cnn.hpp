@@ -106,8 +106,9 @@ protected:
     float activation_tanh_derivative(float x);
     float mse(float x , float y);
     float mse_derivative(float x, float y);
-    float* Kronecker_2(const float a[],int a_len);
+    void Kronecker_2(const float a[],float *ret, int a_len);
     //float dot_product(float *a, float *b, int len);
+    void expand(float *src, float *dst, int len_src, int len_dst);
     
     
     //forward process
@@ -120,6 +121,13 @@ protected:
     
     //backword process
     bool backward_output();
+    bool backward_c5();
+    bool backward_s4();
+    bool backward_c3();
+    bool backward_s2();
+    bool backward_c1();
+    //update
+    bool update();
     
     
 private:
@@ -150,11 +158,22 @@ private:
     float map_s4_out[width_s4 * height_s4 * num_map_s4];
     float map_c5_out[width_c5 * height_c5 * num_map_c5];
     float map_output_out[width_output_cnn * height_output_cnn * num_output_cnn];
+
+    
+    
     
     
     float delta_output_cnn[len_output_map_all];
+    float delta_c5[len_c5_map_all];
+    float delta_s4[len_s4_map_all];
+    float delta_c3[len_c3_map_all];
+    float delta_s2[len_s2_map_all];
+    float delta_c1[len_c1_map_all];
     
-   
+    
+    
+    
+    
     /*
     constexpr static int Matrix_s2c3[num_map_s2][num_map_c3] =
     {

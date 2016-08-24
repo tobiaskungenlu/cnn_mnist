@@ -294,11 +294,10 @@ float cnn::mse_derivative(float x, float y)
     return y-x;
 }
 
-float* cnn::Kronecker_2(const float a[],int a_len)
+void cnn::Kronecker_2(const float a[], float *ret, int a_len)
 {
-    float* ret;
     int x = a_len * 2;
-    ret = new float[x * x];
+    //ret = new float[x * x];
     for (int i = 0; i< x;i++)
     {
         for (int j = 0 ; j < x; j++)
@@ -310,7 +309,7 @@ float* cnn::Kronecker_2(const float a[],int a_len)
     }
     
     
-    return ret;
+
 }
 
 bool cnn::train()
@@ -329,7 +328,12 @@ bool cnn::train()
         forward_output();
         
         //backward
-        
+        backward_output();
+        backward_c5();
+        backward_s4();
+        backward_c3();
+        backward_s2();
+        backward_c1();
         
         cin.get();
     }
@@ -1217,12 +1221,12 @@ bool cnn::forward_output()
         i++;
         
     }
-    
+   /*
     for (int j = 0 ; j < 10; j++)
     {
         cout<<map_output_out[j]<<" ";
     }
-    
+    */
     
     
     
@@ -1248,6 +1252,700 @@ bool cnn::backward_output()
     
     return true;
 }
+
+bool cnn::backward_c5()
+{
+    initial_value(delta_c5, 0.0, num_map_c5);
+    for (int i = 0 ; i < num_map_c5;i++)
+    {
+      
+        float *addr_weight_output = weight_out + i;
+        for (int j = 0 ; j < len_output_map_all; j++)
+        {
+            delta_c5[i] += delta_output_cnn[j] * *addr_weight_output;
+            addr_weight_output += num_map_c5;
+        }
+        delta_c5[i] *= activation_tanh_derivative(map_c5_out[i]);
+        //cout<<delta_c5[i]<<" ";
+        
+    }
+    
+    
+  
+    
+    
+    
+    return true;
+}
+
+
+bool cnn::backward_s4()
+{
+    for (int i = 0 ; i < num_map_s4;i++)
+    {
+        float temp[width_s4][height_s4];
+        for (int p = 0 ; p < height_s4;p++)
+        {
+            for (int q = 0; q< width_s4;q++)
+            {
+                temp[p][q] =0;
+            }
+        }
+        float *addr_weight_c5 = weight_c5 + i * height_kernel * width_kernel;
+        for (int r = 0 ; r < num_map_c5 ;r++)
+        {
+       
+            float kernel_rotate_temp [width_kernel][height_kernel];
+      
+            for (int p = 0 ; p < height_kernel; p++)
+            {
+                for (int q = 0 ; q < width_kernel; q++)
+           
+                {
+              
+                    kernel_rotate_temp[height_kernel - p - 1][width_kernel - q -1] = addr_weight_c5[p * height_kernel + q];
+           
+                }
+            }
+            for (int p = 0 ; p < height_s4;p++)
+            {
+                for (int q = 0; q< width_s4;q++)
+                {
+                    temp[p][q] += kernel_rotate_temp[height_kernel - p - 1][width_kernel - q - 1] * delta_c5[r];
+                }
+            }
+        }
+        float *addr_delta_s4 = delta_s4 + i * width_s4 * height_s4;
+        float *addr_map_s4 = map_s4_out + i * width_s4 * height_s4;
+        for (int p = 0 ; p < height_s4;p++)
+        {
+            for (int q = 0; q < width_s4 ;q++)
+            {
+                addr_delta_s4[p * height_s4 + q] = temp[p][q] * activation_tanh_derivative(addr_map_s4[p * height_s4 + q]);
+                
+               // cout<<addr_delta_s4[p * height_s4 + q]<<" ";
+            }
+        }
+        
+        
+        
+    }
+   /*
+    for (int i = 0 ; i < 5; i++)
+    {
+        for (int j = 0 ; j < 5 ;j ++)
+        {
+            cout<<delta_s4[i * 5 + j]<<" ";
+        }
+        cout<<endl;
+    }
+    */
+    
+    
+    return true;
+}
+
+bool cnn::backward_c3()
+{
+    for (int i= 0 ; i < num_map_c3; i++)
+    {
+        float *addr_temp_delta_s4 = delta_s4 + i  * width_s4 * height_s4;
+        float *addr_delta_c3 = delta_c3 + i * width_c3 * height_c3;
+        float *addr_out_c3 = map_c3_out + i * width_c3 * height_c3;
+        
+        
+        float *temp = new float [width_c3 * height_c3];
+        Kronecker_2(addr_temp_delta_s4,temp, width_s4);
+        for (int j = 0 ; j < width_c3 * height_c3 ; j++)
+        {
+            addr_delta_c3[j] = temp[j] * activation_tanh_derivative(addr_out_c3[j]);
+           // cout<<addr_delta_c3[j]<<" ";
+           
+        }
+      
+         delete[] temp;
+       
+        
+        
+    }
+    /*
+    for (int i = 0 ; i < 10 ; i++)
+    {
+        for (int j = 0 ; j < 10;j++)
+        {
+            cout<<delta_c3[i*10 + j]<<" ";
+        }
+        cout<<endl;
+    }
+    cout<<endl;
+    cout<<endl;
+    cout<<endl;
+    cout<<endl;
+    cout<<endl;
+
+     */
+
+
+
+    return true;
+}
+
+
+void cnn::expand(float *src, float* dst,int len_src, int len_dst)
+{
+    //float* dst;
+    int delta =  ((len_dst - len_src)/2);
+    for (int i = 0 ; i <len_dst * delta;i++)
+    {
+        dst[i] = 0.0;
+    }
+    dst += len_dst * delta;
+    for (int i = 0 ; i < len_src;i++)
+    {
+        for (int j = 0 ; j < delta;j++)
+        {
+            dst[j] = 0.0;
+        }
+        dst +=delta;
+        for (int j = 0 ; j< len_src;j++)
+        {
+            dst[j] = src[j];
+        }
+        dst +=len_src;
+        src+= len_src;
+        for (int j = 0 ; j < delta;j++)
+        {
+            dst[j] = 0.0;
+        }
+        dst +=delta;
+        
+    }
+    for (int i = 0 ; i < len_dst * delta;i++)
+    {
+        dst[i] = 0.0;
+    }
+
+    
+   }
+
+bool cnn::backward_s2()
+{
+    //initial_value(delta_s2, 0.0, 14*14*6);
+    float temp_delta_c3[18 * 18 *16];
+    
+    for (int i = 0 ; i < num_map_c3 ;i++)
+    {
+        
+        float *addr_delta_c3 = delta_c3 + i * width_c3 * height_c3;
+        float *delta_c3_expanded = temp_delta_c3 +  i * 18 * 18;
+        expand(addr_delta_c3, delta_c3_expanded, width_c3, 18);
+        
+    }
+    
+    float *addr_temp_delta_c3 = temp_delta_c3;
+    float delta_c3_expanded_1[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_1[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+   
+    
+    
+    float delta_c3_expanded_2[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_2[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    float delta_c3_expanded_3[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_3[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    float delta_c3_expanded_4[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_4[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    float delta_c3_expanded_5[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_5[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    float delta_c3_expanded_6[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_6[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    float delta_c3_expanded_7[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_7[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    
+    float delta_c3_expanded_8[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_8[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    float delta_c3_expanded_9[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_9[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    float delta_c3_expanded_10[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_10[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    float delta_c3_expanded_11[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_11[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    float delta_c3_expanded_12[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_12[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    float delta_c3_expanded_13[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_13[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    float delta_c3_expanded_14[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_14[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    float delta_c3_expanded_15[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_15[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    
+    float delta_c3_expanded_16[18][18];
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            delta_c3_expanded_16[i][j] = addr_temp_delta_c3[i * 18 + j];
+        }
+    }
+    addr_temp_delta_c3 += 18*18;
+    /*
+    for (int i = 0 ; i < 18; i++)
+    {
+        for (int j = 0 ; j<18;j++)
+        {
+            cout<< delta_c3_expanded_16[i][j]<<" ";
+        }
+        cout<<endl;
+    }
+    cin.get();
+    */
+    
+    for (int i = 0 ;i < num_map_s2; i++)
+    {
+        float *addr_delta_s2 = delta_s2 + i * width_s2 * height_s2;
+       //cout<<addr_delta_s2<<endl;
+        float *addr_out_s2 = map_s2_out + i * width_s2 * height_s2;
+        float *addr_kernel_c3 = weight_c3 + i * width_kernel * height_kernel * num_map_c3;
+        /*float delta_s2_temp[width_s2][height_s2];
+        
+        for (int p = 0 ; p < height_s2;p++)
+        {
+            for (int q = 0 ; q < width_s2;q++)
+            {
+                delta_s2_temp[p][q] = 0.0;
+            }
+        }
+        */
+        
+            float temp_kernel_1[width_kernel][height_kernel];
+            for (int p = 0 ; p < height_kernel;p++)
+            {
+                for (int q = 0 ; q < width_kernel;q++)
+                {
+                    temp_kernel_1[height_kernel - 1 - p][width_kernel - 1 - q] = addr_kernel_c3[p * height_kernel + q];
+                   
+                }
+            }
+            addr_kernel_c3 += width_kernel * height_kernel;
+       
+        
+        
+        float temp_kernel_2[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_2[height_kernel - 1 - p][width_kernel - 1 -q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        float temp_kernel_3[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_3[height_kernel - 1 -  p][width_kernel - 1 - q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        float temp_kernel_4[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_4[height_kernel - 1 - p][width_kernel - 1 - q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        float temp_kernel_5[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_5[height_kernel - 1 -  p][width_kernel - 1- q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        float temp_kernel_6[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_6[height_kernel - 1- p][width_kernel - 1 - q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        
+        float temp_kernel_7[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_7[height_kernel - 1 - p][width_kernel-  1 - q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        float temp_kernel_8[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_8[height_kernel - 1 - p][width_kernel - 1 -  q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        
+        float temp_kernel_9[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_9[height_kernel - 1 - p][width_kernel - 1 - q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        
+        float temp_kernel_10[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_10[height_kernel - 1 - p][width_kernel - 1 - q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        float temp_kernel_11[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_11[height_kernel - 1 - p][width_kernel - 1 - q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        float temp_kernel_12[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_12[height_kernel - 1- p][width_kernel - 1 - q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        /*
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                cout<<temp_kernel_12[p][q]<<" ";
+            }
+            cout<<endl;
+        }
+        cin.get();
+        */
+        
+        float temp_kernel_13[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_13[height_kernel - 1-  p][width_kernel - 1-  q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        
+        float temp_kernel_14[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_14[height_kernel - 1 - p][width_kernel - 1 - q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        float temp_kernel_15[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_15[height_kernel - 1 - p][width_kernel - 1 - q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        
+        float temp_kernel_16[width_kernel][height_kernel];
+        for (int p = 0 ; p < height_kernel;p++)
+        {
+            for (int q = 0 ; q < width_kernel;q++)
+            {
+                temp_kernel_16[height_kernel - 1 - p][width_kernel - 1 - q] = addr_kernel_c3[p * height_kernel + q];
+            }
+        }
+        addr_kernel_c3 += width_kernel * height_kernel;
+        
+        
+        
+        
+        //conv
+        
+        for (int p = 0 ; p < height_s2 ; p++)
+        {
+            for (int q = 0 ; q < width_s2 ; q++)
+            {
+                float temp = 0.0 ;
+     
+                
+                for (int x = 0 ; x < height_kernel ; x++ )
+                {
+                    for (int y = 0 ; y < width_kernel ; y++)
+                    {
+                        temp += delta_c3_expanded_1[p + x][q + y] * temp_kernel_1[x][y]
+                        
+                        + delta_c3_expanded_2[p+x][q+y] * temp_kernel_2[x][y]
+                        
+                        + delta_c3_expanded_3[p+x][q+y] * temp_kernel_3[x][y]
+                        + delta_c3_expanded_4[p+x][q+y] * temp_kernel_4[x][y]
+                        + delta_c3_expanded_5[p+x][q+y] * temp_kernel_5[x][y]
+                        + delta_c3_expanded_6[p+x][q+y] * temp_kernel_6[x][y]
+                        + delta_c3_expanded_7[p+x][q+y] * temp_kernel_7[x][y]
+                        + delta_c3_expanded_8[p+x][q+y] * temp_kernel_8[x][y]
+                        
+                        + delta_c3_expanded_9[p+x][q+y] * temp_kernel_9[x][y]
+                        
+                        + delta_c3_expanded_10[p+x][q+y] * temp_kernel_10[x][y]
+                        
+                        + delta_c3_expanded_11[p+x][q+y] * temp_kernel_11[x][y]
+                        
+                        + delta_c3_expanded_12[p+x][q+y] * temp_kernel_12[x][y]
+                       
+                        + delta_c3_expanded_13[p+x][q+y] * temp_kernel_13[x][y]
+                        + delta_c3_expanded_14[p+x][q+y] * temp_kernel_14[x][y]
+                        + delta_c3_expanded_15[p+x][q+y] * temp_kernel_15[x][y]
+                        + delta_c3_expanded_16[p+x][q+y] * temp_kernel_16[x][y]
+                      
+                         ;
+                        
+                        
+                    }
+                }
+                
+                addr_delta_s2[p * height_s2 + q] = temp * activation_tanh_derivative(addr_out_s2[p * height_s2 + q]);
+                
+            }
+        }
+        
+        
+        
+    }
+    /*
+    for (int i = 0 ; i < 6 ; i++)
+    {
+        cout<<endl;
+        cout<<endl;
+        cout<<endl;
+        
+        for (int p = 0 ; p < 14; p ++)
+        {
+            for (int q = 0 ; q < 14; q++)
+            {
+                cout<<delta_s2[i * p * 14 + q]<<" ";
+            }
+            cout<<endl;
+        }
+    }
+    */
+    
+    return true;
+}
+
+
+bool cnn::backward_c1()
+{
+    for (int i = 0 ; i < num_map_c1;i++)
+    {
+        float *addr_delta_s2 = delta_s2 + i * width_s2 * height_s2;
+        float *addr_delta_c1 = delta_c1 + i * width_c1 * height_c1;
+        float *addr_map_c1 = map_c1_out + i * width_c1 * height_c1;
+        
+        float *temp = new float[width_c1 * height_c1];
+        Kronecker_2(addr_delta_s2, temp, width_s2);
+        
+        for (int j = 0 ; j < width_c1 * height_c1 ; j ++)
+        {
+            addr_delta_c1[j] = temp[j] * activation_tanh_derivative(addr_map_c1[j]);
+            cout<<addr_delta_c1[j]<<" ";
+        }
+        
+        
+        delete []temp;
+        
+  
+        
+        
+    }
+   
+    return true;
+}
+
+bool cnn::update()
+{
+    //output layer
+ 
+    
+    //c5 layer
+    
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    return true;
+}
+
+
+
 
 
 
